@@ -1,0 +1,406 @@
+// prisma/schema.prisma
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id                Int              @id @default(autoincrement())
+  uuid              String           @unique @default(uuid())
+  email             String           @unique
+  password          String
+  firstName         String
+  lastName          String
+  phoneNumber       String?
+  role              Role             @default(WAITER)
+  isActive          Boolean          @default(true)
+  profileImageUrl   String?
+  refreshToken      String?
+  passwordResetToken String?
+  passwordResetExpires DateTime?
+  lastLoginAt       DateTime?
+  createdOrders     Order[]          @relation("CreatedBy")
+  updatedOrders     Order[]          @relation("UpdatedBy")
+  managedRestaurants RestaurantStaff[]
+  notifications     Notification[]
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
+  deletedAt         DateTime?
+}
+
+model Restaurant {
+  id                Int              @id @default(autoincrement())
+  uuid              String           @unique @default(uuid())
+  name              String
+  description       String?
+  address           String
+  city              String
+  state             String?
+  country           String
+  postalCode        String
+  phoneNumber       String
+  email             String?
+  website           String?
+  taxRate           Float            @default(0)
+  currency          String           @default("USD")
+  openingHours      Json?            // Store as JSON: {"monday": {"open": "08:00", "close": "22:00"}, ...}
+  isActive          Boolean          @default(true)
+  logoUrl           String?
+  staff             RestaurantStaff[]
+  tables            Table[]
+  menuCategories    MenuCategory[]
+  menuItems         MenuItem[]
+  orders            Order[]
+  payments          Payment[]
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
+  deletedAt         DateTime?
+}
+
+model RestaurantStaff {
+  id                Int              @id @default(autoincrement())
+  userId            Int
+  user              User             @relation(fields: [userId], references: [id])
+  restaurantId      Int
+  restaurant        Restaurant       @relation(fields: [restaurantId], references: [id])
+  role              Role
+  isActive          Boolean          @default(true)
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
+  deletedAt         DateTime?
+
+  @@unique([userId, restaurantId])
+}
+
+model MenuCategory {
+  id                Int              @id @default(autoincrement())
+  uuid              String           @unique @default(uuid())
+  name              String
+  description       String?
+  imageUrl          String?
+  sortOrder         Int              @default(0)
+  isActive          Boolean          @default(true)
+  restaurantId      Int
+  restaurant        Restaurant       @relation(fields: [restaurantId], references: [id])
+  menuItems         MenuItem[]
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
+  deletedAt         DateTime?
+
+  @@unique([restaurantId, name])
+}
+
+model MenuItem {
+  id                Int              @id @default(autoincrement())
+  uuid              String           @unique @default(uuid())
+  name              String
+  description       String?
+  price             Float
+  discountedPrice   Float?
+  preparationTime   Int?             // In minutes
+  calories          Int?
+  ingredients       String?
+  allergens         String?
+  imageUrl          String?
+  sortOrder         Int              @default(0)
+  isAvailable       Boolean          @default(true)
+  isActive          Boolean          @default(true)
+  categoryId        Int
+  category          MenuCategory     @relation(fields: [categoryId], references: [id])
+  restaurantId      Int
+  restaurant        Restaurant       @relation(fields: [restaurantId], references: [id])
+  menuItemOptions   MenuItemOption[]
+  orderItems        OrderItem[]
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
+  deletedAt         DateTime?
+
+  @@unique([restaurantId, name])
+}
+
+model MenuItemOption {
+  id                Int              @id @default(autoincrement())
+  name              String
+  choices           MenuItemChoice[]
+  isRequired        Boolean          @default(false)
+  multiSelect       Boolean          @default(false)
+  menuItemId        Int
+  menuItem          MenuItem         @relation(fields: [menuItemId], references: [id])
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
+}
+
+model MenuItemChoice {
+  id                Int              @id @default(autoincrement())
+  name              String
+  additionalPrice   Float            @default(0)
+  optionId          Int
+  option            MenuItemOption   @relation(fields: [optionId], references: [id])
+  orderItemChoices  OrderItemChoice[]
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
+}
+
+model Table {
+  id                Int              @id @default(autoincrement())
+  uuid              String           @unique @default(uuid())
+  number            Int
+  capacity          Int
+  status            TableStatus      @default(AVAILABLE)
+  locationNote      String?
+  qrCode            String?
+  restaurantId      Int
+  restaurant        Restaurant       @relation(fields: [restaurantId], references: [id])
+  orders            Order[]
+  reservations      Reservation[]
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
+  deletedAt         DateTime?
+
+  @@unique([restaurantId, number])
+}
+
+model Customer {
+  id                Int              @id @default(autoincrement())
+  uuid              String           @unique @default(uuid())
+  firstName         String?
+  lastName          String?
+  email             String?
+  phoneNumber       String?
+  address           String?
+  city              String?
+  state             String?
+  country           String?
+  postalCode        String?
+  loyaltyPoints     Int              @default(0)
+  birthDate         DateTime?
+  notes             String?
+  orders            Order[]
+  reservations      Reservation[]
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
+  deletedAt         DateTime?
+
+  @@unique([email, phoneNumber])
+}
+
+model Reservation {
+  id                Int              @id @default(autoincrement())
+  uuid              String           @unique @default(uuid())
+  customerId        Int?
+  customer          Customer?        @relation(fields: [customerId], references: [id])
+  guestName         String?
+  guestEmail        String?
+  guestPhoneNumber  String?
+  partySize         Int
+  date              DateTime
+  duration          Int              @default(90)  // Duration in minutes
+  status            ReservationStatus @default(CONFIRMED)
+  notes             String?
+  tableId           Int
+  table             Table            @relation(fields: [tableId], references: [id])
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
+  deletedAt         DateTime?
+}
+
+model Order {
+  id                Int              @id @default(autoincrement())
+  uuid              String           @unique @default(uuid())
+  orderNumber       String           @unique
+  restaurantId      Int
+  restaurant        Restaurant       @relation(fields: [restaurantId], references: [id])
+  tableId           Int?
+  table             Table?           @relation(fields: [tableId], references: [id])
+  customerId        Int?
+  customer          Customer?        @relation(fields: [customerId], references: [id])
+  items             OrderItem[]
+  status            OrderStatus      @default(PENDING)
+  type              OrderType        @default(DINE_IN)
+  subtotal          Float
+  tax               Float
+  tip               Float            @default(0)
+  discount          Float            @default(0)
+  total             Float
+  notes             String?
+  estimatedReadyTime DateTime?
+  actualReadyTime   DateTime?
+  deliveryAddress   String?
+  deliveryInstructions String?
+  createdById       Int
+  createdBy         User             @relation("CreatedBy", fields: [createdById], references: [id])
+  updatedById       Int?
+  updatedBy         User?            @relation("UpdatedBy", fields: [updatedById], references: [id])
+  payments          Payment[]
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
+  deletedAt         DateTime?
+}
+
+model OrderItem {
+  id                Int              @id @default(autoincrement())
+  uuid              String           @unique @default(uuid())
+  orderId           Int
+  order             Order            @relation(fields: [orderId], references: [id])
+  menuItemId        Int
+  menuItem          MenuItem         @relation(fields: [menuItemId], references: [id])
+  quantity          Int
+  price             Float            // Price at time of order
+  subtotal          Float            // price * quantity
+  status            OrderItemStatus  @default(PENDING)
+  notes             String?
+  choices           OrderItemChoice[]
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
+}
+
+model OrderItemChoice {
+  id                Int              @id @default(autoincrement())
+  orderItemId       Int
+  orderItem         OrderItem        @relation(fields: [orderItemId], references: [id])
+  choiceId          Int
+  choice            MenuItemChoice   @relation(fields: [choiceId], references: [id])
+  price             Float            // Price at time of order
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
+}
+
+model Payment {
+  id                Int              @id @default(autoincrement())
+  uuid              String           @unique @default(uuid())
+  orderId           Int
+  order             Order            @relation(fields: [orderId], references: [id])
+  restaurantId      Int
+  restaurant        Restaurant       @relation(fields: [restaurantId], references: [id])
+  amount            Float
+  method            PaymentMethod
+  status            PaymentStatus    @default(PENDING)
+  transactionId     String?
+  receiptUrl        String?
+  notes             String?
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
+}
+
+model Notification {
+  id                Int              @id @default(autoincrement())
+  uuid              String           @unique @default(uuid())
+  userId            Int
+  user              User             @relation(fields: [userId], references: [id])
+  type              NotificationType
+  title             String
+  message           String
+  isRead            Boolean          @default(false)
+  data              Json?            // Additional data related to the notification
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
+}
+
+model Audit {
+  id                Int              @id @default(autoincrement())
+  entityType        String           // The type of entity being audited (e.g., "Order", "MenuItem")
+  entityId          Int              // The ID of the entity being audited
+  action            AuditAction
+  userId            Int              // The ID of the user who performed the action
+  oldValues         Json?            // The old values before the change
+  newValues         Json?            // The new values after the change
+  ipAddress         String?
+  userAgent         String?
+  createdAt         DateTime         @default(now())
+}
+
+enum Role {
+  ADMIN
+  MANAGER
+  CHEF
+  WAITER
+  CASHIER
+  BARTENDER
+  HOST
+}
+
+enum OrderStatus {
+  PENDING
+  CONFIRMED
+  PREPARING
+  READY
+  DELIVERED
+  PAID
+  CANCELLED
+  REFUNDED
+}
+
+enum OrderItemStatus {
+  PENDING
+  PREPARING
+  READY
+  DELIVERED
+  CANCELLED
+}
+
+enum OrderType {
+  DINE_IN
+  TAKEOUT
+  DELIVERY
+  PICKUP
+  CATERING
+  ONLINE
+}
+
+enum TableStatus {
+  AVAILABLE
+  OCCUPIED
+  RESERVED
+  CLEANING
+  MAINTENANCE
+}
+
+enum PaymentMethod {
+  CASH
+  CREDIT_CARD
+  DEBIT_CARD
+  MOBILE_PAYMENT
+  GIFT_CARD
+  LOYALTY_POINTS
+  BANK_TRANSFER
+  CHECK
+  OTHER
+}
+
+enum PaymentStatus {
+  PENDING
+  COMPLETED
+  FAILED
+  REFUNDED
+  PARTIALLY_REFUNDED
+}
+
+enum ReservationStatus {
+  PENDING
+  CONFIRMED
+  SEATED
+  COMPLETED
+  CANCELLED
+  NO_SHOW
+}
+
+enum NotificationType {
+  ORDER_STATUS
+  RESERVATION
+  SYSTEM
+  ALERT
+  PROMOTION
+}
+
+enum AuditAction {
+  CREATE
+  UPDATE
+  DELETE
+  LOGIN
+  LOGOUT
+  PAYMENT
+}
