@@ -1,13 +1,21 @@
 import { Request, Response, NextFunction } from "express";
+import logger from "../utils/logger";
 
 export class AppError extends Error {
-  statusCode: number;
-  isOperational: boolean;
+  public statusCode: number;
+  public isOperational: boolean;
+  public details?: any;
 
-  constructor(message: string, statusCode: number) {
+  constructor(
+    message: string,
+    statusCode: number,
+    details?: any,
+    isOperational = true
+  ) {
     super(message);
     this.statusCode = statusCode;
-    this.isOperational = true;
+    this.isOperational = isOperational;
+    this.details = details;
 
     Error.captureStackTrace(this, this.constructor);
   }
@@ -19,31 +27,53 @@ export const errorHandler = (
   res: Response,
   next: NextFunction
 ) => {
-  const error = err as AppError;
+  const error = err instanceof AppError ? err : new AppError(err.message, 500);
 
-  error.statusCode = error.statusCode || 500;
+  // Log the error
+  logger.error({
+    message: error.message,
+    statusCode: error.statusCode,
+    stack: error.stack,
+    path: req.path,
+    method: req.method,
+    ip: req.ip,
+    details: error.details,
+  });
 
-  if (process.env.NODE_ENV === "development") {
-    res.status(error.statusCode).json({
-      status: "error",
-      message: error.message,
-      stack: error.stack,
-      error: error,
-    });
-  } else {
-    // Production error handling
-    if (error.isOperational) {
-      res.status(error.statusCode).json({
-        status: "error",
-        message: error.message,
-      });
-    } else {
-      // Programming or unknown errors - don't leak error details
-      console.error("ERROR 💥", error);
-      res.status(500).json({
-        status: "error",
-        message: "Something went wrong",
-      });
-    }
+  // Determine response based on environment
+  const isProduction = process.env.NODE_ENV === "production";
+  const response: any = {
+    status: "error",
+    message: error.message,
+    ...(!isProduction && { stack: error.stack }),
+  };
+
+  // Include details if they exist
+  if (error.details) {
+    response.details = error.details;
   }
+
+  // Special handling for certain status codes
+  if (error.statusCode === 401) {
+    response.message = response.message || "Unauthorized";
+    res.setHeader("WWW-Authenticate", "Bearer");
+  }
+
+  // Send response
+  res.status(error.statusCode).json(response);
 };
+
+// 404 error generator for routes that don't exist
+export const notFoundHandler = (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
+  next(new AppError(`Cannot ${req.method} ${req.path}`, 404));
+};
+
+// Async error handler wrapper for controllers
+export const asyncHandler =
+  (fn: Function) => (req: Request, res: Response, next: NextFunction) => {
+    Promise.resolve(fn(req, res, next)).catch(next);
+  };
