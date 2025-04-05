@@ -43,7 +43,9 @@ export const shutdownHandler = async ({
           prisma
             .$disconnect()
             .then(() => logger.info("Prisma disconnected"))
-            .catch((err) => logger.error("Error disconnecting Prisma", err))
+            .catch((err: any) =>
+              logger.error("Error disconnecting Prisma", err)
+            )
       : null,
 
     // Disconnect Redis if exists

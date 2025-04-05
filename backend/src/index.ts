@@ -30,7 +30,7 @@ requiredEnvVars.forEach((envVar) => {
 
 // Initialize Express app
 const app: Application = express();
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 8000;
 const isProduction = process.env.NODE_ENV === "production";
 
 // Initialize Prisma client with connection pool settings
